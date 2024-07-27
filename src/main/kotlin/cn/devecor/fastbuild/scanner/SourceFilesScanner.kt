@@ -11,40 +11,6 @@ interface VirtualFile {
     get() = emptyArray()
 }
 
-fun scanSourceDirs(
-  srcDir: VirtualFile,
-  dst: VirtualFile,
-  lang: SupportedLang,
-  group: String,
-  initDirs: List<String> = emptyList()
-): List<String> {
-  val candidates = fullNames(lang, dst)
-    .filter { it.startsWith(group) }
-    .distinct()
-    .map { if (it.endsWith(".*")) it.dropLast(2) else it }
-    .flatMap {
-      val names = it.split(".")
-      listOf(names.joinToString("/"), names.dropLast(1).joinToString("/"))
-    }
-    .flatMap { listOf("main/$lang/$it", "test/$lang/$it") }
-    .flatMap { listOf(it, "$it.${lang.ext}") }
-    .map { it to srcDir.findFileOrDirectory(it) }
-    .filterSecondNotNull()
-
-  return candidates
-    .flatMap {
-      if (it.second.isFile) return@flatMap scanSourceDirs(
-        srcDir,
-        it.second,
-        lang,
-        group,
-        (candidates.map { it.first } + initDirs).distinct()
-      )
-      return@flatMap listOf(it.first)
-    }
-    .distinct()
-}
-
 fun scanSourceFiles(
   srcDir: VirtualFile,
   dst: VirtualFile,

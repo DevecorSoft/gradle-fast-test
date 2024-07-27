@@ -6,49 +6,10 @@ import io.kotest.matchers.collections.shouldHaveSize
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
-class ImportScannerTest {
+class SourceFilesScannerTest {
 
   @Nested
   inner class ScanSourceDirs {
-
-    @Test
-    fun `should return paths of current file`() {
-      val srcDir = FakeDirHasNoFile("src")
-      val dst = FakeFile(
-        """
-      package cn.devecor.gradlenecessarybuild.scanner
-
-      import cn.devecor.gradlenecessarybuild.SupportedLang
-      import io.kotest.matchers.shouldBe
-      import org.junit.jupiter.api.Test
-    """.trimIndent(),
-        "DstTest.kt"
-      )
-
-      val dirs = scanSourceDirs(srcDir, dst, SupportedLang.kotlin, "cn.devecor")
-
-      dirs shouldContain "main/kotlin/cn/devecor/gradlenecessarybuild"
-    }
-
-    @Test
-    fun `should return paths of deps file`() {
-      val srcDir = FakeDirHasFile("src")
-      val dst = FakeFile(
-        """
-      package cn.devecor.gradlenecessarybuild.scanner
-
-      import cn.devecor.gradlenecessarybuild.SupportedLang
-      import io.kotest.matchers.shouldBe
-      import org.junit.jupiter.api.Test
-    """.trimIndent(),
-        "DstTest.kt"
-      )
-
-      val dirs = scanSourceDirs(srcDir, dst, SupportedLang.kotlin, "cn.devecor")
-
-      dirs shouldContain "main/kotlin/cn/devecor/gradlenecessarybuild/someThing"
-      dirs shouldContain "main/kotlin/cn/devecor/gradlenecessarybuild"
-    }
 
     @Test
     fun `should remove child dirs`() {
