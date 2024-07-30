@@ -79,6 +79,16 @@ fun selfMainFullNames(supportedLang: SupportedLang, dst: VirtualFile): List<Stri
     .apply { this.forEach {println(it)} }
 }
 
+fun resolveGroup(supportedLang: SupportedLang, dst: VirtualFile): String {
+  val packageCode = dst.readText().split("\n").find {
+    val candidate = it.trim()
+    candidate.startsWith("package") && regexps[supportedLang]!!.`package`.matches(candidate)
+  } ?: return ""
+  return packageCode.split(" ").last()
+    .let { if(it.endsWith(";")) it.dropLast(1) else it }
+    .split(".").subList(0, 2).joinToString(".")
+}
+
 fun List<String>.normalizeDirs(): List<String> {
   return this.filter { candidate ->
     this.none { it != candidate && candidate.startsWith(it) }

@@ -1,6 +1,7 @@
 package cn.devecor.fastbuild
 
 import cn.devecor.fastbuild.scanner.filterFirstNotNull
+import cn.devecor.fastbuild.scanner.resolveGroup
 import cn.devecor.fastbuild.scanner.scanSourceFiles
 import com.intellij.execution.ProgramRunnerUtil
 import com.intellij.execution.RunManager
@@ -12,7 +13,7 @@ import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.CommonDataKeys
 import com.intellij.openapi.command.WriteCommandAction
-import com.intellij.openapi.externalSystem.model.ProjectKeys
+import com.intellij.openapi.projectRoots.ProjectJdkTable
 import com.intellij.openapi.roots.ProjectFileIndex
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.openapi.vfs.VirtualFileManager
@@ -32,16 +33,15 @@ class TestRunnerAction : AnAction() {
   override fun actionPerformed(e: AnActionEvent) {
     val project = e.project ?: return
     val file = e.getData(CommonDataKeys.VIRTUAL_FILE) ?: return
-
     if (!file.path.contains("src/test")) return
 
-    val module = ProjectFileIndex.getInstance(project).getModuleForFile(file) ?: return
-
-    val gradleModuleData = CachedModuleDataFinder.getGradleModuleData(module) ?: return
-    val testsData = gradleModuleData.findAll(ProjectKeys.TEST)
-    val firstTest = testsData.firstOrNull() ?: return
+    val gradleModuleData = CachedModuleDataFinder.getGradleModuleData(
+      ProjectFileIndex.getInstance(project).getModuleForFile(file) ?: return
+    ) ?: return
 
     val gradleProjectDir = gradleModuleData.gradleProjectDir
+
+    val javacPath = resolveJavacPath() ?: return
 
     val buildScriptFile = ScriptType.values().map {
       VirtualFileManager.getInstance().findFileByUrl("file://$gradleProjectDir/${it.fileName}") to it
@@ -49,16 +49,12 @@ class TestRunnerAction : AnAction() {
       .filterFirstNotNull()
       .firstOrNull() ?: return
 
-    val lang = when (file.extension) {
-      "kt" -> SupportedLang.kotlin
-      "java" -> SupportedLang.java
-      else -> return
-    }
+    val lang = SupportedLang.of(file.extension!!) ?: return
 
     val buildScriptVirtualFile = buildScriptFile.first
-    val srcDirVirtualFile =
-      VirtualFileManager.getInstance().findFileByUrl("file://$gradleProjectDir/src") ?: return
-    val group = gradleModuleData.moduleData.group ?: return
+    val srcDirVirtualFile = VirtualFileManager.getInstance()
+      .findFileByUrl("file://$gradleProjectDir/src") ?: return
+    val group = resolveGroup(lang, VirtualFileAdapter(file))
 
     val originalBuildScriptContent = buildScriptVirtualFile.readText()
 
@@ -103,7 +99,7 @@ class TestRunnerAction : AnAction() {
       this.isRunAsTest = true
       this.commandLine = GradleCommandLine.parse(
         listOf(
-          "fastCompile",
+          "fastTest",
           "-x",
           "compileJava",
           "-x",
@@ -122,13 +118,18 @@ class TestRunnerAction : AnAction() {
     val environment = ExecutionEnvironmentBuilder.create(executor, runnerAndConfigurationSettings).build {
       it.processHandler?.addProcessListener(object : ProcessAdapter() {
         override fun processTerminated(event: ProcessEvent) {
-          WriteCommandAction.runWriteCommandAction(project) {
-//            buildScriptVirtualFile.writeText(originalBuildScriptContent)
-          }
+          println("event: ${event.text}")
         }
       })
     }
     ProgramRunnerUtil.executeConfiguration(environment, true, true)
+  }
+
+  private fun resolveJavacPath(): String? {
+    val sdk = ProjectJdkTable.getInstance().allJdks.firstOrNull {
+      it.sdkType.name == "JavaSDK"
+    } ?: return null
+    return sdk.homePath + "/bin/javac"
   }
 }
 
@@ -142,6 +143,11 @@ fun srcDirsConfig(scriptType: ScriptType, dirs: List<String>): String {
 
 fun fastTestConfig(lang: SupportedLang, testFilesPath: String): String {
   return """
+tasks.register("fastClasses") {
+  doFirst {
+    project.file("build/fast/classpath").writeText(project.sourceSets["test"].runtimeClasspath.asPath + project.sourceSets["main"].runtimeClasspath.asPath + project.sourceSets["main"].compileClasspath.asPath)
+  }
+}
 tasks.register("fastCompile") {
     doFirst {
       exec {
