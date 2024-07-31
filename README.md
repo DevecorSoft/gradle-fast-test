@@ -27,5 +27,6 @@ flowchart TB
 - [x] group resolver
 - [] classpath resolver
 - [] performance: class placeholder
+- [] performance: incremental compile
 - [] advanced scanning inside same package
 - [] json-schema for config file

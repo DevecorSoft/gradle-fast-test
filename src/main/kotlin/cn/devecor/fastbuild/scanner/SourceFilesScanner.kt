@@ -76,7 +76,6 @@ fun fullNames(supportedLang: SupportedLang, dst: VirtualFile, regex: Regex): Lis
 fun selfMainFullNames(supportedLang: SupportedLang, dst: VirtualFile): List<String> {
   return fullNames(supportedLang, dst, regexps[supportedLang]!!.`package`)
       .map { "$it.${dst.name.split(".")[0].removeSuffix("Test")}" }
-    .apply { this.forEach {println(it)} }
 }
 
 fun resolveGroup(supportedLang: SupportedLang, dst: VirtualFile): String {
