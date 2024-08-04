@@ -24,11 +24,12 @@ import org.jetbrains.plugins.gradle.execution.build.CachedModuleDataFinder
 import org.jetbrains.plugins.gradle.service.execution.GradleExternalTaskConfigurationType
 import org.jetbrains.plugins.gradle.service.execution.GradleRunConfiguration
 import org.jetbrains.plugins.gradle.util.cmd.node.GradleCommandLine
-import java.util.Optional
+import java.util.*
 import kotlin.io.path.Path
 import kotlin.io.path.pathString
+import kotlin.jvm.optionals.getOrNull
 
-const val taskStatement = """tasks.register("fastClasspath")"""
+const val fastClasspathTaskStatement = """tasks.register("fastClasspath")"""
 
 class TestRunnerAction : AnAction() {
 
@@ -51,7 +52,7 @@ class TestRunnerAction : AnAction() {
     val destinationRelativeTestFilePath = Path(moduleRootDirPath).relativize(Path(file.path)).pathString
 
     val javacPath = resolveJavacPath().get()
-    val classpath = resolveClasspath(project, moduleRootDirPath).get()
+    val classpath = resolveClasspath(project, moduleRootDirPath).getOrNull() ?: return
 
     fastCompileJava(
       javacPath,
@@ -110,7 +111,7 @@ class TestRunnerAction : AnAction() {
 
     val buildScriptVirtualFile = resolveBuildScriptFile(moduleRootDirPath).get()
     val originalBuildScriptContent = buildScriptVirtualFile.readText()
-    if (!originalBuildScriptContent.contains(taskStatement)) {
+    if (!originalBuildScriptContent.contains(fastClasspathTaskStatement)) {
       WriteCommandAction.runWriteCommandAction(project) {
         buildScriptVirtualFile.writeText(originalBuildScriptContent + fastClasspathConfig)
       }
@@ -118,14 +119,15 @@ class TestRunnerAction : AnAction() {
 
     ProgramRunnerUtil.executeConfiguration(runnerAndConfigurationSettings, executor)
 
-    return Optional.of(
+    return Optional.ofNullable(
       VirtualFileManager.getInstance()
-        .findFileByUrl("file://$moduleRootDirPath/$classpathRelativePath")!!
-        .readText()
-        .trim()
-        .removeSurrounding("\r\n")
-        .removeSurrounding("\n")
-    )
+        .findFileByUrl("file://$moduleRootDirPath/$classpathRelativePath")
+    ).map {
+      it.readText()
+      .trim()
+      .removeSurrounding("\r\n")
+      .removeSurrounding("\n")
+    }
   }
 
   private fun executeTest(project: Project, taskName: String) {
@@ -170,7 +172,7 @@ fun srcDirsConfig(scriptType: ScriptType, dirs: List<String>): String {
 
 fun fastClasspathConfig(classpathRelativePath: String): String {
   return """
-$taskStatement {
+$fastClasspathTaskStatement {
   doFirst {
     project.file("$classpathRelativePath").writeText(project.sourceSets["test"].runtimeClasspath.asPath + project.sourceSets["main"].runtimeClasspath.asPath + project.sourceSets["main"].compileClasspath.asPath)
   }
